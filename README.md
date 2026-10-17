@@ -1,6 +1,6 @@
 # omnifood/thefork
 
-TheFork (LaFourchette) for [glitchr/omnifood](https://github.com/glitchr-studio/omnifood): the
+TheFork (LaFourchette) for [omniscient/omnifood](https://github.com/glitchr-studio/omnifood): the
 restaurant's reservations read with their guests, created, updated and cancelled, its time slots
 opened or closed online, the webhooks read - through TheFork's B2B API (TheFork Manager).
 

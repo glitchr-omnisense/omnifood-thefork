@@ -3,7 +3,7 @@
 ## Installation
 
 ```sh
-composer require glitchr/omnifood omnifood/thefork
+composer require omniscient/omnifood omnifood/thefork
 ```
 
 ## Configuration
