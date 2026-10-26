@@ -1,6 +1,6 @@
 # omnifood/thefork
 
-TheFork (LaFourchette) for [omniscient/omnifood](https://github.com/glitchr-studio/omnifood): the
+TheFork (LaFourchette) for [omnisense/omnifood](https://github.com/glitchr-omnisense/omnifood): the
 restaurant's reservations read with their guests, created, updated and cancelled, its time slots
 opened or closed online, the webhooks read - through TheFork's B2B API (TheFork Manager).
 
@@ -23,7 +23,7 @@ $thefork = (new TheForkPlatformFactory(HttpClient::create()))->create([
 
 Plain PHP, no framework needed: the factory takes any `HttpClientInterface` - the application's, a
 `MockHttpClient` in a test - and makes its own when given none. In a Symfony application, the same
-options under `omnifood.platforms` ([the bundle](https://github.com/glitchr-studio/omnifood/blob/1.x/docs/symfony.md)):
+options under `omnifood.platforms` ([the bundle](https://github.com/glitchr-omnisense/omnifood/blob/1.x/docs/symfony.md)):
 
 ```yaml
 omnifood:
