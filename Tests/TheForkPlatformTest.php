@@ -142,6 +142,26 @@ final class TheForkPlatformTest extends TestCase
             'customer' => ['email' => 'jo@example.com', 'firstName' => 'Jo', 'lastName' => 'Martin', 'phone' => '+33612345678', 'locale' => 'fr_FR', 'civility' => 'mx']], $body);
     }
 
+    /** A national number takes the country of the guest's locale, else of the configured one. */
+    public function testANationalPhoneIsSentInE164(): void
+    {
+        $sent = function (string $phone, ?string $locale, array $options = []): string {
+            $this->calls = [];
+            $this->platform($options)->createReservation(new Reservation(new \DateTimeImmutable('2026-10-12T19:30:00+02:00'), 2, new Guest('Jo', 'Martin', 'jo@example.com', $phone, $locale)));
+
+            return end($this->calls)[4]['customer']['phone'];
+        };
+
+        self::assertSame('+33612345678', $sent('06 12 34 56 78', 'fr-fr'));
+        self::assertSame('+33612345678', $sent('06 12 34 56 78', 'fr'), 'no region: the configured locale\'s, fr_FR');
+        self::assertSame('+34612345678', $sent('612 34 56 78', 'es_ES'));
+        self::assertSame('+390612345678', $sent('06 1234 5678', 'it_IT'), 'Italy keeps its leading 0');
+        self::assertSame('+33612345678', $sent('0033 6 12 34 56 78', 'en_GB'));
+        self::assertSame('+33612345678', $sent('+33 (0)6 12 34 56 78', 'fr'));
+        $this->expectException(\InvalidArgumentException::class);
+        $sent('06 12 34 56 78', 'fr', ['locale' => 'fr']);
+    }
+
     public function testAReservationUpdatedAndCancelled(): void
     {
         $platform = $this->platform();
@@ -208,6 +228,21 @@ final class TheForkPlatformTest extends TestCase
         $this->calls = [];
         $expired->reservation('r2');
         self::assertSame('/oauth/token', $this->calls[0][1], 'a dead token replaced first');
+    }
+
+    /** A 2xx whose body is not JSON (a proxy's page) is not an empty answer. */
+    public function testAnAnswerThatIsNotJsonIsAnError(): void
+    {
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('[thefork] An answer that is not JSON (HTTP 200).');
+        $this->platform([], static fn () => new MockResponse('<html><body>502 Bad Gateway</body></html>', ['http_code' => 200, 'response_headers' => ['Content-Type: text/html']]))->reservation('r1');
+    }
+
+    public function testATokenExpiryItCannotReadIsAnInvalidConfig(): void
+    {
+        $this->expectException(\Omnifood\Exception\InvalidConfigException::class);
+        $this->expectExceptionMessage('The "thefork" platform\'s token_expires_at "soon" is not a date.');
+        $this->platform(['access_token' => 'tk', 'token_expires_at' => 'soon']);
     }
 
     public function testErrorsAreMapped(): void

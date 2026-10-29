@@ -129,7 +129,7 @@ final class TheForkPlatform implements ReservationsInterface, NotifiableInterfac
                 'email' => $guest->email,
                 'firstName' => $guest->firstName,
                 'lastName' => $guest->lastName,
-                'phone' => $guest->phone ? self::e164($guest->phone) : null,
+                'phone' => $guest->phone ? self::e164($guest->phone, $guest->locale, $this->locale) : null,
                 'locale' => self::locale($guest->locale ?? $this->locale),
                 'civility' => $reservation->raw['civility'] ?? $this->civility,
             ], static fn ($v) => null !== $v && '' !== $v),
@@ -296,9 +296,37 @@ final class TheForkPlatform implements ReservationsInterface, NotifiableInterfac
     }
 
     /** "+33 6 12 34 56 78" as TheFork wants it: "+33612345678". */
-    private static function e164(string $phone): string
+    /** The calling codes of the countries TheFork serves; the trunk prefix 0 is dropped but in Italy, San Marino and the Vatican. */
+    private const CALLING_CODES = [
+        'FR' => '33', 'MC' => '377', 'BE' => '32', 'LU' => '352', 'CH' => '41', 'ES' => '34', 'PT' => '351', 'IT' => '39', 'SM' => '378', 'VA' => '39',
+        'NL' => '31', 'DE' => '49', 'AT' => '43', 'GB' => '44', 'IE' => '353', 'DK' => '45', 'SE' => '46', 'NO' => '47', 'FI' => '358', 'PL' => '48',
+        'TR' => '90', 'AU' => '61', 'BR' => '55', 'AR' => '54', 'CL' => '56', 'CO' => '57', 'PE' => '51', 'MX' => '52', 'US' => '1', 'CA' => '1',
+    ];
+    private const KEEP_TRUNK = ['IT', 'SM', 'VA'];
+
+    /**
+     * The phone in E.164: "+33 6 12..." and "0033 6 12..." as they say; a
+     * national number in the country of the guest's locale (fr_FR), else of
+     * the configured one. Without a country to read it in, refused rather
+     * than sent wrong.
+     */
+    private static function e164(string $phone, ?string ...$locales): string
     {
-        return '+'.ltrim((string) preg_replace('/[^\d+]/', '', $phone), '+');
+        $digits = (string) preg_replace('/[^\d+]/', '', str_replace('(0)', '', $phone));
+        if (str_starts_with($digits, '+')) {
+            return '+'.ltrim($digits, '+');
+        }
+        if (str_starts_with($digits, '00')) {
+            return '+'.substr($digits, 2);
+        }
+        foreach ($locales as $locale) {
+            $region = strtoupper((preg_split('/[-_]/', (string) $locale) ?: [])[1] ?? '');
+            if (isset(self::CALLING_CODES[$region])) {
+                return '+'.self::CALLING_CODES[$region].(\in_array($region, self::KEEP_TRUNK, true) ? $digits : (string) preg_replace('/^0/', '', $digits));
+            }
+        }
+
+        throw new \InvalidArgumentException(\sprintf('The phone "%s" has no country code, and neither the guest\'s locale nor the configured one names a country: give it as +<country code>...', $phone));
     }
 
     /** "fr", "fr_FR", "fr-fr" as TheFork wants it: ll or ll_CC. */

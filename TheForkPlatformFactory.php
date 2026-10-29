@@ -3,6 +3,7 @@
 namespace Omnifood\TheFork;
 
 use Omnifood\Config;
+use Omnifood\Exception\InvalidConfigException;
 use Omnifood\Model\Token;
 use Omnifood\PlatformFactory;
 use Omnifood\PlatformInterface;
@@ -46,7 +47,7 @@ final class TheForkPlatformFactory extends PlatformFactory
 
     protected function build(Config $config): PlatformInterface
     {
-        $token = $config['access_token'] ? new Token((string) $config['access_token'], $config['token_expires_at'] ? new \DateTimeImmutable((string) $config['token_expires_at']) : null) : null;
+        $token = $config['access_token'] ? new Token((string) $config['access_token'], $config['token_expires_at'] ? self::expiry((string) $config['token_expires_at']) : null) : null;
 
         return new TheForkPlatform(
             new Api($config['client_id'] ? (string) $config['client_id'] : null, $config['client_secret'] ? (string) $config['client_secret'] : null, $token, (string) $config['base_uri'], (string) $config['token_url'], $this->http),
@@ -56,5 +57,14 @@ final class TheForkPlatformFactory extends PlatformFactory
             (string) $config['civility'],
             filter_var($config['with_customers'], \FILTER_VALIDATE_BOOL),
         );
+    }
+
+    private static function expiry(string $value): \DateTimeImmutable
+    {
+        try {
+            return new \DateTimeImmutable($value);
+        } catch (\Exception $e) {
+            throw new InvalidConfigException(\sprintf('The "thefork" platform\'s token_expires_at "%s" is not a date.', $value), 0, $e);
+        }
     }
 }

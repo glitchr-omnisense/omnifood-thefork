@@ -53,7 +53,7 @@ no `OAuthInterface`.
 | `restaurant_id` | string | - | for `reservations()`, `createReservation()`, `pushAvailability()` | the restaurant's UUID |
 | `webhook_token` | string | - | for `notify()` | the token put in the webhook URL |
 | `access_token` | string | - | no | a token kept by the site |
-| `token_expires_at` | string (a date, ATOM) | - | no | when that token dies |
+| `token_expires_at` | string (a date, ATOM) | - | no | when that token dies; a date PHP cannot read is an `InvalidConfigException` |
 | `locale` | string | `fr_FR` | no | a guest's, when the reservation does not say |
 | `civility` | string | `mx` | no | a guest's (TheFork requires one), when `raw['civility']` does not say |
 | `with_customers` | bool | `true` | no | read each reservation's customer (name, phone, allergies): one call more each |
@@ -102,13 +102,12 @@ others sorted oldest first. The mapping:
 (`raw['offerUuid']`: booked on an offer, else on normal stock) and the customer: e-mail, first and
 last names, phone, the locale as `ll` or `ll_CC` (`fr-fr` becomes `fr_FR`; the guest's, else the
 `locale` option), the civility (`raw['civility']`, else the `civility` option). TheFork requires
-the e-mail, the names, a locale and a civility, and the phone in E.164: the phone keeps its digits
-and its `+`, and a `+` is put in front.
-
-> [!WARNING]
-> Known defect: a national phone number is sent as it is with a `+` in front - `06 12 34 56 78`
-> becomes `+0612345678` (checked on a recorded answer) - where an E.164 number (`+33612345678`) is
-> expected. Give the guest's phone with its country code.
+the e-mail, the names, a locale and a civility, and the phone in E.164: `+33 6 12 34 56 78` and
+`0033 6 12 34 56 78` as they say (`+33612345678`, a `(0)` dropped); a national number
+(`06 12 34 56 78`) in the country of the guest's locale (`fr_FR`), else of the `locale` option,
+its trunk 0 dropped (kept in Italy, San Marino and the Vatican): `+33612345678`. A national
+number when neither locale names a country TheFork serves is a `\InvalidArgumentException`,
+nothing sent.
 
 **Changing and cancelling.** `updateReservation()` sends the date and the party size, and the
 staff's note when `raw` has a `restaurantNote` key (`null` clears it); the guest and the notes are
@@ -197,8 +196,8 @@ omnifood:
                 webhook_token: '%env(default::THEFORK_WEBHOOK_TOKEN)%'
 ```
 
-`createReservation()` was run on a recorded answer on 2026-10-26 (the body sent shown in the
-defect above); nothing was run against TheFork.
+`createReservation()` was run on a recorded answer on 2026-10-26 (the phone's E.164 rules checked
+since by `testANationalPhoneIsSentInE164`, on a mock); nothing was run against TheFork.
 
 ## Errors
 
@@ -207,14 +206,11 @@ defect above); nothing was run against TheFork.
   (else `error_description`, the code, `error`, `HTTP <status>.`), `data.code` as `providerCode`
   (or the token endpoint's `error` on a 401-403).
 - A network failure: `ProviderException` `TheFork could not be reached: ...`.
+- A 2xx answer whose body is not JSON (a proxy's or a maintenance page): `ProviderException`
+  `An answer that is not JSON (HTTP 200).`, with the status.
 - A token answer without `access_token`: `ProviderException` `No token in TheFork's answer.`
 - `setStatus()` other than `CANCELLED`: `NotSupportedException`. A webhook whose token does not
   match, or whose body is not JSON: `InvalidSignatureException`.
-
-> [!WARNING]
-> Known defect: a 2xx answer whose body is not JSON is read as an empty answer, where a
-> `ProviderException` is expected; a reservation read so has the date of now and an empty
-> reference. An unreadable `token_expires_at` throws PHP's own `\Exception` from the factory.
 
 ## Verified, and not
 
