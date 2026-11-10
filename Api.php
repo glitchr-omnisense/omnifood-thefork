@@ -5,8 +5,11 @@ namespace Omnifood\TheFork;
 use Omnifood\Exception\InvalidConfigException;
 use Omnifood\Exception\ProviderException;
 use Omnifood\Exception\UnauthorizedException;
+use Omnifood\Http\NoRetry;
 use Omnifood\Http\Redaction;
+use Omnifood\Http\Throttle;
 use Omnifood\Model\Token;
+use Omnisense\Contracts\Policy\Backoff;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -35,8 +38,11 @@ final class Api
         private readonly string $baseUri = self::BASE_URI,
         private readonly string $tokenUrl = self::TOKEN_URL,
         ?HttpClientInterface $http = null,
+        /** The waits TheFork asks for (omnisense/contracts' Backoff): no call while one lasts, a 429 a RateLimitedException, never retried */
+        private readonly ?Backoff $backoff = null,
     ) {
-        $this->http = $http ?? HttpClient::create();
+        // Sent once: no retry of the HTTP client's either (Http\NoRetry).
+        $this->http = NoRetry::of($http ?? HttpClient::create());
     }
 
     /**
@@ -103,9 +109,11 @@ final class Api
      */
     private function send(string $method, string $url, array $options): array
     {
+        Throttle::before($this->backoff);
         try {
             $response = $this->http->request($method, $url, $options);
             $status = $response->getStatusCode();
+            $received = $response->getHeaders(false);
             $content = $response->getContent(false);
         } catch (HttpExceptionInterface $e) {
             $secrets = [...Redaction::secrets($url, $options), ...array_filter([$this->clientSecret, $this->token?->accessToken, $this->token?->refreshToken])];
@@ -119,8 +127,12 @@ final class Api
         }
         $data = \is_array($data) ? $data : [];
         if ($status >= 400) {
-            throw Redaction::withoutArguments(self::error($status, $data));
+            $error = self::error($status, $data);
+            Throttle::after($this->backoff, self::PLATFORM, $status, $received, 'Too many calls, try again later: '.self::message($status, $data), $error->providerCode);
+
+            throw Redaction::withoutArguments($error);
         }
+        Throttle::after($this->backoff, self::PLATFORM, $status, $received);
 
         return $data;
     }
@@ -128,13 +140,25 @@ final class Api
     /** @param array<string, mixed> $data */
     private static function error(int $status, array $data): ProviderException
     {
-        $code = isset($data['data']['code']) && '' !== $data['data']['code'] ? (string) $data['data']['code'] : (isset($data['error']) && \is_string($data['error']) && 401 <= $status && $status <= 403 ? $data['error'] : null);
-        $message = (string) ($data['message'] ?? $data['error_description'] ?? $code ?? $data['error'] ?? \sprintf('HTTP %d.', $status));
+        $code = self::code($status, $data);
+        $message = self::message($status, $data);
 
         if (401 === $status || 403 === $status) {
             return new UnauthorizedException(self::PLATFORM, $message, $status, $code);
         }
 
-        return new ProviderException(self::PLATFORM, 429 === $status ? 'Too many calls, try again later: '.$message : $message, $status, $code);
+        return new ProviderException(self::PLATFORM, $message, $status, $code);
+    }
+
+    /** @param array<mixed> $data */
+    private static function code(int $status, array $data): ?string
+    {
+        return isset($data['data']['code']) && '' !== $data['data']['code'] ? (string) $data['data']['code'] : (isset($data['error']) && \is_string($data['error']) && 401 <= $status && $status <= 403 ? $data['error'] : null);
+    }
+
+    /** @param array<mixed> $data */
+    private static function message(int $status, array $data): string
+    {
+        return (string) ($data['message'] ?? $data['error_description'] ?? self::code($status, $data) ?? $data['error'] ?? \sprintf('HTTP %d.', $status));
     }
 }

@@ -199,6 +199,16 @@ omnifood:
 `createReservation()` was run on a recorded answer on 2026-10-26 (the phone's E.164 rules checked
 since by `testANationalPhoneIsSentInE164`, on a mock); nothing was run against TheFork.
 
+## Usage policy
+
+`policy.json` (named in `composer.json`'s `extra.omnisense.policy`, read 2026-11-10) declares
+the TheFork Partners API Terms of Use's defaults: 200 calls a minute and 10,000 a day, per key,
+negotiable; caching needs TheFork's prior approval and no data may be forwarded. A 429 comes from
+TheFork's gateway before the request reaches the endpoint: a `RateLimitedException`, never
+retried, and TheFork's next calls wait for its `Retry-After`, unsent. `pushAvailability()` sends
+one request per slot, each counted by the guard. TheFork offers no idempotency key on a
+reservation's creation: it is sent once, the HTTP client's retries off. See omnisense/omnifood's [Usage policies and rate limits](https://github.com/glitchr-omnisense/omnifood/blob/1.x/docs/policies.md).
+
 ## Errors
 
 - 401 and 403: `UnauthorizedException`; 429: `ProviderException` `Too many calls, try again

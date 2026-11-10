@@ -50,7 +50,7 @@ final class TheForkPlatformFactory extends PlatformFactory
         $token = $config['access_token'] ? new Token((string) $config['access_token'], $config['token_expires_at'] ? self::expiry((string) $config['token_expires_at']) : null) : null;
 
         return new TheForkPlatform(
-            new Api($config['client_id'] ? (string) $config['client_id'] : null, $config['client_secret'] ? (string) $config['client_secret'] : null, $token, (string) $config['base_uri'], (string) $config['token_url'], $this->http),
+            new Api($config['client_id'] ? (string) $config['client_id'] : null, $config['client_secret'] ? (string) $config['client_secret'] : null, $token, (string) $config['base_uri'], (string) $config['token_url'], $this->http, $config->backoff()),
             $config['restaurant_id'] ? (string) $config['restaurant_id'] : null,
             $config['webhook_token'] ? (string) $config['webhook_token'] : null,
             (string) $config['locale'],

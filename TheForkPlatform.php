@@ -17,6 +17,8 @@ use Omnifood\Model\Slot;
 use Omnifood\Model\Token;
 use Omnifood\NotifiableInterface;
 use Omnifood\ReservationsInterface;
+use Omnisense\Contracts\Policy\DeclaresUsagePolicyInterface;
+use Omnisense\Contracts\Policy\UsagePolicy;
 
 /**
  * A restaurant's reservations at TheFork, through the B2B API
@@ -42,8 +44,10 @@ use Omnifood\ReservationsInterface;
  * Tables, deposits and card imprints on a reservation are not in the
  * public API.
  */
-final class TheForkPlatform implements ReservationsInterface, NotifiableInterface, RefreshableInterface
+final class TheForkPlatform implements ReservationsInterface, NotifiableInterface, RefreshableInterface, DeclaresUsagePolicyInterface
 {
+    private static ?UsagePolicy $policy = null;
+
     /** reservations()' page size; TheFork takes up to 10000 */
     public const PAGE = 100;
 
@@ -55,6 +59,12 @@ final class TheForkPlatform implements ReservationsInterface, NotifiableInterfac
         private readonly string $civility = 'mx',
         private readonly bool $withCustomers = true,
     ) {
+    }
+
+    /** Its usage policy, as the package declares it (policy.json, read once). */
+    public function usagePolicy(): UsagePolicy
+    {
+        return self::$policy ??= UsagePolicy::fromFile(__DIR__.'/policy.json');
     }
 
     public function getName(): string
