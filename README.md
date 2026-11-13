@@ -41,6 +41,18 @@ omnifood:
                 # access_token / token_expires_at: a token the site keeps - TheFork asks not to request one needlessly
 ```
 
+## Install
+
+```sh
+composer require omnifood/thefork
+```
+
+It requires `omnisense/omnifood` `^1.0`, installed with it. A real call needs: **TheFork partner API
+credentials** (client id and secret, the restaurant id): TheFork sends them only to partners it has
+accepted. With no account, its tests run on recorded answers (a `MockHttpClient`), and
+[omnisense/omnifood](https://github.com/glitchr-omnisense/omnifood#install-and-a-first-call)'s
+README has a first call that runs without one.
+
 ## What it does
 
 | Omnifood | TheFork |
